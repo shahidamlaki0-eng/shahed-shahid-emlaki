@@ -19,8 +19,17 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -28,13 +37,22 @@ jobs:
           gradle-version: "8.9"
 
       - name: Extract project
-        run: unzip -o ShahedShahidEmalaki_MobileBuild_Stage1.zip
+        shell: bash
+        run: |
+          unzip -o ShahedShahidEmalaki_MobileBuild_Stage1.zip
+          PROJECT_DIR="$(find . -name settings.gradle.kts -printf '%h\n' | head -n 1)"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Project files not found"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Build APK
-        run: gradle -p ShahedShahidEmalaki assembleDebug
+        run: gradle -p "$PROJECT_DIR" :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Shahed-Shahid-Emalaki-APK
-          path: ShahedShahidEmalaki/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/build/outputs/apk/debug/*.apk"
+          if-no-files-found: error
