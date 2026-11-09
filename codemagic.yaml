@@ -1,0 +1,35 @@
+workflows:
+  android-workflow:
+    name: Build Shahed Android APK
+    max_build_duration: 60
+    instance_type: linux_x2
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Extract Android project
+        script: |
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "Project ZIP not found"
+            exit 1
+          fi
+
+          mkdir -p extracted
+          unzip -o "$ZIP_FILE" -d extracted
+
+          PROJECT_DIR=$(find extracted -name settings.gradle.kts -printf '%h\n' | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Android project not found in ZIP"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $CM_ENV
+
+      - name: Build debug APK
+        script: |
+          gradle -p "$PROJECT_DIR" :app:assembleDebug
+
+    artifacts:
+      - extracted/**/build/outputs/apk/debug/*.apk
